@@ -119,6 +119,14 @@ def show_power_dice():
             help="C値13では通常クリティカルしません。",
         )
 
+    damage_bonus = st.number_input(
+        "追加ダメージ",
+        value=0,
+        step=1,
+        key="damage_bonus",
+        help="威力表の最終結果に加算する追加ダメージです。",
+    )
+
     if st.button(
         "🎲 威力表を振る",
         key="power_roll",
@@ -128,6 +136,7 @@ def show_power_dice():
         result = roll_power(
             power=power,
             critical=critical,
+            damage_bonus=damage_bonus,
         )
 
         st.subheader("威力表結果")
@@ -175,8 +184,16 @@ def show_power_dice():
                 f"**{result['critical_count']}回**"
             )
 
+        st.write(
+            f"威力表合計：**{result['power_total']}**"
+        )
+
+        st.write(
+            f"追加ダメージ：**{result['damage_bonus']:+}**"
+        )
+
         st.success(
-            f"威力表合計：{result['power_total']}"
+            f"算出ダメージ：{result['final_damage']}"
         )
 
 

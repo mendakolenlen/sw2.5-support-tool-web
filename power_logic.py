@@ -9,10 +9,12 @@ MAX_CRITICAL = 13
 
 def validate_power(power: int):
     """
-    指定された威力が現在のPOWER_TABLEに存在するか確認する。
+    指定された威力がPOWER_TABLEに存在するか確認する。
     """
     if power not in POWER_TABLE:
-        available = ", ".join(str(value) for value in sorted(POWER_TABLE))
+        available = ", ".join(
+            str(value) for value in sorted(POWER_TABLE)
+        )
 
         raise ValueError(
             f"威力{power}は現在の威力表に存在しません。"
@@ -22,8 +24,8 @@ def validate_power(power: int):
 
 def validate_critical(critical: int):
     """
-    現在のツールで扱うC値の範囲を確認する。
-    C値13は「クリティカルなし」として使用する。
+    C値が使用可能な範囲か確認する。
+    C値13は「通常クリティカルしない」として扱う。
     """
     if not MIN_CRITICAL <= critical <= MAX_CRITICAL:
         raise ValueError(
@@ -45,8 +47,8 @@ def get_power_value(power: int, dice_total: int):
     """
     2D6の出目に対応した威力表の値を取得する。
 
-    出目2（1ゾロ）は通常の威力表参照を行わないため、
-    この関数では受け付けない。
+    出目2（1ゾロ）は自動失敗なので、
+    通常の威力表参照は行わない。
     """
     validate_power(power)
 
@@ -58,7 +60,11 @@ def get_power_value(power: int, dice_total: int):
     return POWER_TABLE[power][dice_total - 2]
 
 
-def roll_power(power: int, critical: int):
+def roll_power(
+    power: int,
+    critical: int,
+    damage_bonus: int = 0,
+):
     """
     SW2.5の基本的な威力表ロールを行う。
 
@@ -68,15 +74,17 @@ def roll_power(power: int, critical: int):
     ・出目がC値以上
         → クリティカルして振り足し
 
-    ・振り足し中の1ゾロ
-        → それまでの威力表結果を残して終了
+    ・振り足し中に1ゾロ
+        → それまでの結果を残して終了
 
     ・出目がC値未満
-        → 終了
+        → 威力表ロール終了
 
-    戻り値には各ロールの履歴も含める。
+    ・追加ダメージ
+        → 威力表合計に最後に1回だけ加算
     """
 
+    # 入力値を確認
     validate_power(power)
     validate_critical(critical)
 
@@ -86,6 +94,9 @@ def roll_power(power: int, critical: int):
     critical_count = 0
     roll_number = 1
 
+    # -------------------------
+    # 威力表ロール
+    # -------------------------
     while True:
         dice1, dice2, dice_total = roll_2d6()
 
@@ -105,7 +116,7 @@ def roll_power(power: int, critical: int):
                 }
             )
 
-            # 最初の威力表ロールで1ゾロ
+            # 最初のロールで1ゾロ
             if roll_number == 1:
                 end_reason = "auto_failure"
 
@@ -116,13 +127,14 @@ def roll_power(power: int, critical: int):
             break
 
         # -------------------------
-        # 通常の威力表参照
+        # 威力表参照
         # -------------------------
         power_value = get_power_value(
             power=power,
             dice_total=dice_total,
         )
 
+        # C値以上ならクリティカル
         is_critical = dice_total >= critical
 
         history.append(
@@ -147,9 +159,7 @@ def roll_power(power: int, critical: int):
             roll_number += 1
             continue
 
-        # -------------------------
         # C値未満なので終了
-        # -------------------------
         end_reason = "below_critical"
         break
 
@@ -168,11 +178,27 @@ def roll_power(power: int, critical: int):
         result_type = "success"
         result_text = "威力表ロール終了"
 
+    # -------------------------
+    # 最終ダメージ
+    # -------------------------
+    if end_reason == "auto_failure":
+        # 初回1ゾロならダメージ自体を算出しない
+        final_damage = None
+
+    else:
+        # 追加ダメージは最後に1回だけ加える
+        final_damage = power_total + damage_bonus
+
+    # -------------------------
+    # app.pyへ結果を返す
+    # -------------------------
     return {
         "power": power,
         "critical": critical,
+        "damage_bonus": damage_bonus,
         "history": history,
         "power_total": power_total,
+        "final_damage": final_damage,
         "critical_count": critical_count,
         "end_reason": end_reason,
         "result_type": result_type,

@@ -269,5 +269,135 @@ class TestPowerLogic(unittest.TestCase):
             )
 
 
+    @patch(
+        "power_logic.roll_2d6",
+        return_value=(5, 4, 9),
+    )
+    def test_damage_bonus(self, mock_roll):
+        """
+        通常の威力表結果に追加ダメージが
+        1回だけ加算されることを確認する。
+
+        威力25・出目9
+        → 威力表8
+
+        追加ダメージ7
+        → 最終ダメージ15
+        """
+
+        result = roll_power(
+            power=25,
+            critical=10,
+            damage_bonus=7,
+        )
+
+        self.assertEqual(
+            result["power_total"],
+            8,
+        )
+
+        self.assertEqual(
+            result["damage_bonus"],
+            7,
+        )
+
+        self.assertEqual(
+            result["final_damage"],
+            15,
+        )
+
+
+    @patch(
+        "power_logic.roll_2d6",
+        side_effect=[
+            (5, 6, 11),
+            (5, 4, 9),
+        ],
+    )
+    def test_damage_bonus_added_once_after_critical(
+        self,
+        mock_roll,
+    ):
+        """
+        クリティカルしても、
+        追加ダメージは最後に1回だけ加える。
+
+        威力25 / C値10
+
+        11 → 威力表9 → クリティカル
+         9 → 威力表8 → 終了
+
+        威力表合計17
+        追加ダメージ5
+
+        最終ダメージ22
+        """
+
+        result = roll_power(
+            power=25,
+            critical=10,
+            damage_bonus=5,
+        )
+
+        self.assertEqual(
+            result["power_total"],
+            17,
+        )
+
+        self.assertEqual(
+            result["critical_count"],
+            1,
+        )
+
+        self.assertEqual(
+            result["damage_bonus"],
+            5,
+        )
+
+        self.assertEqual(
+            result["final_damage"],
+            22,
+        )
+
+
+    @patch(
+        "power_logic.roll_2d6",
+        return_value=(1, 1, 2),
+    )
+    def test_fumble_does_not_calculate_damage(
+        self,
+        mock_roll,
+    ):
+        """
+        初回1ゾロの場合は、
+        追加ダメージがあってもダメージを算出しない。
+        """
+
+        result = roll_power(
+            power=25,
+            critical=10,
+            damage_bonus=100,
+        )
+
+        self.assertEqual(
+            result["result_type"],
+            "auto_failure",
+        )
+
+        self.assertEqual(
+            result["power_total"],
+            0,
+        )
+
+        self.assertEqual(
+            result["damage_bonus"],
+            100,
+        )
+
+        self.assertIsNone(
+            result["final_damage"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
